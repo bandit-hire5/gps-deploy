@@ -1,0 +1,111 @@
+version: "2.1"
+
+networks:
+  gps:
+
+services:
+  gps-rabbitmq:
+    image: rabbitmq:latest
+    container_name: gps-rabbitmq
+    restart: always
+    ports:
+      - 5672:5672
+    healthcheck:
+      timeout: 5s
+      interval: 5s
+      retries: 5
+      test: ["CMD", "rabbitmqctl", "status"]
+    networks:
+      - gps
+
+  gps-tracker-mongo:
+    image: gps-mongo
+    container_name: gps-tracker-mongo
+    restart: always
+    #environment:
+      #MONGO_INITDB_DATABASE: gps-tracker
+      #MONGO_INITDB_ROOT_USERNAME: bandit
+      #MONGO_INITDB_ROOT_PASSWORD: 1234567
+    ports:
+      - 27017:27017
+    healthcheck:
+      test: ["CMD", "docker-healthcheck"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gps
+
+  gps-tracker:
+    container_name: gps-tracker
+    image: gps-tracker
+    command: bash -c "./bin/main run"
+    environment:
+      - GPS_TRACKING_DB_NAME=gps-tracker
+      - GPS_TRACKING_DB_USER=bandit
+      - GPS_TRACKING_DB_PASSWORD=1234567
+      - GPS_TRACKING_DB_HOST=172.17.0.1
+      - GPS_TRACKING_DB_PORT=27017
+    volumes:
+      - ../../gps-tracker/logs:/go/src/github.com/gps/gps-tracker/logs
+    ports:
+      - 8080:8080
+    depends_on:
+      gps-rabbitmq:
+          condition: service_healthy
+      gps-tracker-mongo:
+        condition: service_healthy
+    networks:
+      - gps
+
+  gps-users-postgres:
+    image: postgres:10.4-alpine
+    container_name: gps-users-postgres
+    environment:
+      - POSTGRES_DB=users_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1234567
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gps
+
+  gps-gateway:
+    container_name: gps-gateway
+    image: gps-gateway
+    environment:
+      - NODE_ENV=dev
+      - RABBIT_URL=amqp://guest:guest@172.17.0.1:5672
+      - GATEWAY_PORT=3000
+    command: npm start
+    ports:
+      - 3000:3000
+    depends_on:
+      gps-rabbitmq:
+          condition: service_healthy
+    networks:
+      - gps
+
+  gps-users:
+    container_name: gps-users
+    image: gps-users
+    environment:
+      - NODE_ENV=dev
+      - RABBIT_URL=amqp://guest:guest@172.17.0.1:5672
+      - PG_USER=postgres
+      - PG_HOST=localhost
+      - PG_DATABASE=users_db
+      - PG_PASSWORD=1234567
+    command: npm start
+    depends_on:
+      gps-users-postgres:
+        condition: service_healthy
+      gps-rabbitmq:
+        condition: service_healthy
+    networks:
+      - gps

@@ -1,0 +1,32 @@
+version: "2.1"
+
+networks:
+  gps:
+
+services:
+  gps-tracker-migrator:
+    image: gps-tracker
+    container_name: gps-tracker-migrator
+    environment:
+      - GPS_TRACKING_DB_NAME=gps-tracker
+      - GPS_TRACKING_DB_USER=bandit
+      - GPS_TRACKING_DB_PASSWORD=1234567
+      - GPS_TRACKING_DB_HOST=172.17.0.1
+      - GPS_TRACKING_DB_PORT=27017
+    command: bash -c "./bin/main migrate up"
+    networks:
+      - gps
+
+  gps-users-migrator:
+    image: gps-users
+    container_name: gps-users-migrator
+    environment:
+      - NODE_ENV=dev
+      - RABBIT_URL=amqp://guest:guest@172.17.0.1:5672
+      - PG_USER=postgres
+      - PG_HOST=172.17.0.1
+      - PG_DATABASE=users_db
+      - PG_PASSWORD=1234567
+    command: npm run db-migrate-pg:up
+    networks:
+      - gps

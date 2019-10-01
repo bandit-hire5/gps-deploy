@@ -17,6 +17,10 @@ list-branches)
 all)
 	# Update deployment scenarios
 	git pull
+	# Build the mongo service
+	cd ../gps-mongo
+	git pull
+	./build.sh
 	# Build the users service
 	cd ../gps-users
 	git pull
